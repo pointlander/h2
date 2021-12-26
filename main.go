@@ -127,7 +127,7 @@ func main() {
 		return system
 	}
 
-	sim := func(theta float64) float64 {
+	sim := func(coeff int, theta float64) float64 {
 		sz := base(theta)
 		sxx := xx(theta)
 		syy := yy(theta)
@@ -187,7 +187,7 @@ func main() {
 			v += signs["yy"][state.BinaryString[0]] * state.Probability
 			e["yy"] = v
 		}
-		coefficients := Coeff[11]
+		coefficients := Coeff[coeff]
 		return coefficients.One +
 			e["zi"]*coefficients.Z0 +
 			e["iz"]*coefficients.Z1 +
@@ -196,17 +196,56 @@ func main() {
 			e["yy"]*coefficients.Y0Y1
 	}
 
+	getMinEnergy := func(coeff int) float64 {
+		points := make(plotter.XYs, 0, 8)
+		min := math.MaxFloat64
+		for v := 0.0; v < 2*math.Pi; v += .1 {
+			result := sim(coeff, v)
+			if result < min {
+				min = result
+			}
+			points = append(points, plotter.XY{X: v, Y: result})
+			fmt.Println(result)
+		}
+
+		if coeff == 11 {
+			p := plot.New()
+
+			p.Title.Text = "energy vs theta"
+			p.X.Label.Text = "theta"
+			p.Y.Label.Text = "energy"
+
+			scatter, err := plotter.NewScatter(points)
+			if err != nil {
+				panic(err)
+			}
+			scatter.GlyphStyle.Radius = vg.Length(1)
+			scatter.GlyphStyle.Shape = draw.CircleGlyph{}
+			p.Add(scatter)
+
+			err = p.Save(8*vg.Inch, 8*vg.Inch, "energy.png")
+			if err != nil {
+				panic(err)
+			}
+		}
+
+		return min
+	}
+
 	points := make(plotter.XYs, 0, 8)
-	for v := 0.0; v < 2*math.Pi; v += .1 {
-		result := sim(v)
-		points = append(points, plotter.XY{X: v, Y: result})
-		fmt.Println(result)
+	min, distance := math.MaxFloat64, 0.0
+	for i, coefficients := range Coeff {
+		energy := getMinEnergy(i)
+		if energy < min {
+			min, distance = energy, coefficients.R
+		}
+		points = append(points, plotter.XY{X: coefficients.R, Y: energy})
 	}
 
 	p := plot.New()
 
-	p.Title.Text = "energy vs theta"
-	p.X.Label.Text = "theta"
+	p.Title.Text = "energy vs distance"
+	p.X.Label.Text = "distance"
 	p.Y.Label.Text = "energy"
 
 	scatter, err := plotter.NewScatter(points)
@@ -217,8 +256,10 @@ func main() {
 	scatter.GlyphStyle.Shape = draw.CircleGlyph{}
 	p.Add(scatter)
 
-	err = p.Save(8*vg.Inch, 8*vg.Inch, "energy.png")
+	err = p.Save(8*vg.Inch, 8*vg.Inch, "min_energy.png")
 	if err != nil {
 		panic(err)
 	}
+
+	fmt.Println(min, distance)
 }
